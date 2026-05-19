@@ -1,0 +1,64 @@
+name: Train and Upload to Hugging Face
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  train-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Train model
+        run: python train.py
+
+      - name: Upload to Hugging Face Hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          python - <<'EOF'
+          import os
+          from huggingface_hub import HfApi
+
+          token = os.environ["HF_TOKEN"]
+          repo_id = "joey0708/imdb-sentiment-nn"
+
+          api = HfApi()
+
+          # 创建仓库（如果不存在）
+          api.create_repo(repo_id, token=token, exist_ok=True)
+
+          # 上传所有模型文件
+          files_to_upload = [
+              "model/model.pt",
+              "model/vectorizer.pkl",
+              "model/config.json",
+              "model/metrics.json"
+          ]
+
+          for file in files_to_upload:
+              if os.path.exists(file):
+                  api.upload_file(
+                      path_or_fileobj=file,
+                      path_in_repo=file,
+                      repo_id=repo_id,
+                      token=token,
+                  )
+                  print(f"✓ Uploaded {file}")
+              else:
+                  print(f"✗ File not found: {file}")
+
+          print(f"\n✅ Model uploaded to: https://huggingface.co/{repo_id}")
+          EOF
